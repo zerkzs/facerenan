@@ -4,7 +4,7 @@ import { LoginPage } from "@/features/auth/presentation/login-page";
 
 export default async function Login() {
   const session = await auth();
-  if (session) redirect("/dashboard");
+  if (session?.user?.id) redirect("/dashboard");
 
   return <LoginPage />;
 }
