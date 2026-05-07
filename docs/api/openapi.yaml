@@ -1,0 +1,178 @@
+openapi: 3.1.0
+info:
+  title: Meta Ads Dashboard API
+  version: 0.1.0
+  description: |
+    REST API for the Meta Ads Dashboard. Provides authentication via Meta
+    OAuth and campaign management endpoints backed by the Meta Marketing
+    API v25.0. API-First: this contract is updated **before** the
+    implementation. The code respects the contract, never the other way
+    around.
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://meta-ads-dashboard.vercel.app
+    description: Production (Vercel)
+
+tags:
+  - name: health
+    description: Liveness and version probes
+  - name: auth
+    description: Authentication endpoints (Auth.js managed)
+
+paths:
+  /api/auth/signin:
+    get:
+      tags: [auth]
+      summary: Initiate OAuth sign-in
+      operationId: authSignIn
+      security: []
+      responses:
+        "302":
+          description: Redirect to Meta OAuth consent screen
+
+  /api/auth/callback/facebook:
+    get:
+      tags: [auth]
+      summary: OAuth callback from Meta
+      operationId: authCallback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+        - name: state
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "302":
+          description: Redirect to /dashboard on success, /login on failure
+
+  /api/auth/session:
+    get:
+      tags: [auth]
+      summary: Get current session
+      operationId: getSession
+      responses:
+        "200":
+          description: Current session data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          description: Not authenticated
+
+  /api/auth/signout:
+    post:
+      tags: [auth]
+      summary: Sign out and destroy session
+      operationId: authSignOut
+      responses:
+        "302":
+          description: Redirect to /login
+
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      description: Returns 200 OK when the service is up.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /version:
+    get:
+      tags: [health]
+      summary: Build version
+      description: Returns the running build version (calver tag or git sha).
+      operationId: getVersion
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+
+    VersionResponse:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+          description: Calver tag or short git sha of the running build
+          example: v2026.04.30-a1b2c3d
+        commit:
+          type: string
+          description: Full git commit sha
+          example: a1b2c3d4e5f6...
+
+    SessionResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            email:
+              type: string
+              format: email
+            image:
+              type: string
+              format: uri
+              nullable: true
+        expires:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable, machine-readable error code
+          example: validation_failed
+        message:
+          type: string
+          description: Human-readable explanation. Never includes stack traces or internal identifiers.
+          example: Field 'email' is required.
+        correlation_id:
+          type: string
+          description: Request correlation id for tracing
+          example: 9f8e7d6c-...
+
+security:
+  - bearerAuth: []

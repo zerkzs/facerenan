@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      // ─── Read-only / inspection ─────────────────────────────────────────
+      "Bash(cat:*)",
+      "Bash(diff:*)",
+      "Bash(echo:*)",
+      "Bash(env)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(jq:*)",
+      "Bash(ls:*)",
+      "Bash(sort:*)",
+      "Bash(tail:*)",
+      "Bash(test:*)",
+      "Bash(tree:*)",
+      "Bash(uniq:*)",
+      "Bash(wc:*)",
+      "Bash(which:*)",
+
+      // ─── Filesystem (project-scoped via Edit/Read rules below) ──────────
+      "Bash(chmod:*)",
+      "Bash(cp:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+
+      // ─── Git (read + safe writes; destructive ops in deny) ──────────────
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git stash:*)",
+      "Bash(git status)",
+      "Bash(gh:*)",
+
+      // ─── Tools (project-scoped via Read/Edit rules) ─────────────────────
+      "Glob",
+      "Grep",
+      "Read(./**)",
+      "Edit(./src/**)",
+      "Edit(./tests/**)",
+      "Edit(./docs/**)",
+      "Edit(./migrations/**)",
+      "Edit(./infra/**)",
+      "Write(./src/**)",
+      "Write(./tests/**)",
+      "Write(./docs/**)",
+      "Write(./migrations/**)",
+      "Write(./infra/**)"
+
+      // ─── Stack: Node / JS / TS ─────────────────────────────────────────
+      "Bash(node:*)",
+      "Bash(npm ci:*)", "Bash(npm install:*)", "Bash(npm run:*)", "Bash(npm test:*)",
+      "Bash(npx:*)",
+      //
+      // Python:
+      // "Bash(python:*)", "Bash(python -m pytest:*)", "Bash(python -m mypy:*)",
+      // "Bash(python -m ruff:*)", "Bash(python -m black:*)", "Bash(python -m isort:*)",
+      // "Bash(pytest:*)", "Bash(ruff:*)", "Bash(mypy:*)", "Bash(uv:*)",
+      //
+      // Go:
+      // "Bash(go:*)", "Bash(gofmt:*)",
+      //
+      // Rust:
+      // "Bash(cargo:*)", "Bash(rustfmt:*)",
+      //
+      // Java/Kotlin:
+      // "Bash(mvn:*)", "Bash(./gradlew:*)",
+      //
+      // Ruby:
+      // "Bash(bundle:*)", "Bash(rake:*)", "Bash(rspec:*)",
+      //
+      // Containers:
+      // "Bash(docker compose:*)", "Bash(docker build:*)",
+      //
+      // IaC (read-only / format only — apply/destroy stay in deny):
+      // "Bash(terraform plan)", "Bash(terraform validate)", "Bash(terraform fmt:*)",
+      // "Bash(pulumi preview:*)",
+      //
+      // Cloud CLIs (use sparingly; deploy commands belong in CI):
+      // "Bash(gcloud builds submit:*)", "Bash(supabase:*)", "Bash(wrangler:*)",
+    ],
+
+    "deny": [
+      // ═══════════════════════════════════════════════════════════════════
+      // SECRETS — read access to credential files anywhere on disk
+      // ═══════════════════════════════════════════════════════════════════
+
+      // Project env files (any depth, not just root)
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/id_rsa*)",
+      "Read(**/id_ed25519*)",
+      "Read(**/id_ecdsa*)",
+      "Read(**/credentials.json)",
+      "Read(**/service-account*.json)",
+      "Read(**/serviceAccount*.json)",
+
+      // Cloud provider credentials
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.kube/**)",
+
+      // Package manager / publish tokens
+      "Read(~/.npmrc)",
+      "Read(~/.pypirc)",
+      "Read(~/.cargo/credentials*)",
+      "Read(~/.netrc)",
+      "Read(~/.git-credentials)",
+      "Read(~/.docker/config.json)",
+
+      // SSH & GPG
+      "Read(~/.ssh/**)",
+      "Read(~/.gnupg/**)",
+
+      // Shell history (may contain secrets typed inline)
+      "Read(~/.bash_history)",
+      "Read(~/.zsh_history)",
+      "Read(~/.python_history)",
+      "Read(~/.node_repl_history)",
+      "Read(~/.psql_history)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // NETWORK — best-effort block on raw fetchers
+      // (interpreters in allow can still fetch; treat this as friction,
+      //  not as a real network sandbox)
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(curl:*)",
+      "Bash(wget:*)",
+      "Bash(http:*)",
+      "Bash(httpie:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // DESTRUCTIVE — filesystem & disk
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(rm:*)",
+      "Bash(dd:*)",
+      "Bash(mkfs:*)",
+      "Bash(shred:*)",
+      "Bash(chown:*)",
+      "Bash(sudo:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // GIT — destructive / publish operations
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git filter-branch:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(git rebase:*)",
+      "Bash(git update-ref:*)",
+      "Bash(gh auth token)",
+      "Bash(gh secret:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // PACKAGE PUBLISH — prevent accidental release
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(npm publish:*)",
+      "Bash(pnpm publish:*)",
+      "Bash(yarn publish:*)",
+      "Bash(cargo publish:*)",
+      "Bash(twine upload:*)",
+      "Bash(python -m twine upload:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // PACKAGE INSTALL — supply-chain risk; force interactive approval
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(uv pip install:*)",
+      "Bash(npm install -g:*)",
+      "Bash(pnpm add -g:*)",
+      "Bash(cargo install:*)",
+      "Bash(brew install:*)",
+      "Bash(apt install:*)",
+      "Bash(apt-get install:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // IaC — production-grade destructive commands
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(terraform import:*)",
+      "Bash(terraform state:*)",
+      "Bash(terraform workspace delete:*)",
+      "Bash(pulumi up:*)",
+      "Bash(pulumi destroy:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // CLOUD — credential access, IAM changes, project-level destruction
+      // ═══════════════════════════════════════════════════════════════════
+
+      // GCP
+      "Bash(gcloud iam:*)",
+      "Bash(gcloud projects delete:*)",
+      "Bash(gcloud secrets versions access:*)",
+      "Bash(gcloud auth application-default print-access-token:*)",
+      "Bash(gcloud auth print-access-token:*)",
+      "Bash(gcloud auth print-identity-token:*)",
+
+      // AWS
+      "Bash(aws iam:*)",
+      "Bash(aws sts get-session-token:*)",
+      "Bash(aws s3 rm:*)",
+      "Bash(aws s3 rb:*)",
+      "Bash(aws ec2 terminate-instances:*)",
+      "Bash(aws rds delete-db-instance:*)",
+
+      // Supabase / Wrangler — secret access
+      "Bash(supabase secrets:*)",
+      "Bash(wrangler secret:*)",
+      "Bash(wrangler kv:key delete:*)",
+
+      // Kubernetes
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl drain:*)",
+      "Bash(kubectl exec:*)",
+      "Bash(helm uninstall:*)",
+      "Bash(helm delete:*)",
+
+      // ═══════════════════════════════════════════════════════════════════
+      // CONTAINERS — destructive
+      // ═══════════════════════════════════════════════════════════════════
+      "Bash(docker system prune:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(docker volume prune:*)",
+      "Bash(docker network prune:*)",
+      "Bash(docker compose down -v:*)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "0"
+  },
+  "includeCoAuthoredBy": false,
+  "cleanupPeriodDays": 30,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-secrets.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-save.sh"
+          },
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/.claude/hooks/docs-reminder.js"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-context.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
