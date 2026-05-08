@@ -1,10 +1,12 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   BarChart3,
   Wallet,
@@ -13,6 +15,10 @@ import {
   Loader2,
   TrendingUp,
   Shield,
+  Eye,
+  EyeOff,
+  LogIn,
+  UserPlus,
 } from "lucide-react";
 
 const FEATURES = [
@@ -49,45 +55,85 @@ const FEATURES = [
 ];
 
 const ERROR_MESSAGES: Record<string, string> = {
+  CredentialsSignin: "Invalid email or password. Please try again.",
   OAuthSignin: "Could not start the sign-in process. Please try again.",
   OAuthCallback: "Authentication failed. Please try again.",
-  OAuthAccountNotLinked:
-    "This account is already linked to another sign-in method.",
-  AccessDenied:
-    "Access denied. Please grant the required permissions to continue.",
+  AccessDenied: "Access denied.",
   default: "An unexpected error occurred. Please try again.",
 };
 
-function MetaIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a4.892 4.892 0 0 0 1.12 2.15c.55.586 1.3.928 2.196.928 1.037 0 1.952-.395 2.853-1.146a15.58 15.58 0 0 0 2.39-2.986c.405-.623.783-1.27 1.134-1.928.373.698.78 1.39 1.23 2.064.8 1.2 1.715 2.264 2.707 2.978.88.633 1.792.968 2.747.968.9 0 1.652-.342 2.204-.93a4.895 4.895 0 0 0 1.12-2.152c.14-.608.21-1.27.21-1.973 0-2.566-.706-5.24-2.047-7.306C16.769 5.31 15.053 4.03 13.085 4.03c-1.2 0-2.22.498-3.073 1.382C9.163 4.528 8.133 4.03 6.915 4.03ZM4.8 13.186c.546-1.387 1.322-2.616 2.08-3.14.39-.27.738-.376 1.057-.376.36 0 .727.17 1.112.51.453.4.906.997 1.333 1.744-.397.66-.81 1.293-1.238 1.876-.796 1.082-1.61 1.927-2.322 2.386-.462.297-.854.417-1.183.417-.395 0-.7-.16-.95-.437-.282-.313-.482-.798-.595-1.4a6.158 6.158 0 0 1-.1-1.18c0-.461.027-.935.082-1.4h-.276Zm10.497.058c-.56-1.418-1.353-2.674-2.125-3.202-.396-.272-.746-.378-1.066-.378-.357 0-.72.168-1.103.505-.454.399-.91.998-1.339 1.747.404.666.824 1.305 1.26 1.893.804 1.086 1.625 1.933 2.342 2.394.463.298.856.418 1.185.418.396 0 .7-.16.95-.438.283-.314.483-.8.596-1.403.065-.347.1-.716.1-1.106 0-.466-.028-.944-.083-1.413h.283v-.017Z" />
-    </svg>
-  );
-}
-
 function LoginContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const error = searchParams.get("error");
 
   useEffect(() => {
     if (error) {
-      const message =
-        ERROR_MESSAGES[error] ?? ERROR_MESSAGES.default;
+      const message = ERROR_MESSAGES[error] ?? ERROR_MESSAGES.default;
       toast.error("Authentication Error", { description: message });
     }
   }, [error]);
 
-  function handleSignIn() {
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setIsLoading(true);
-    signIn("facebook", { callbackUrl: "/dashboard" });
+
+    try {
+      if (isLogin) {
+        const result = await signIn("credentials", {
+          email,
+          password,
+          redirect: false,
+        });
+
+        if (result?.error) {
+          toast.error("Login failed", {
+            description: "Invalid email or password.",
+          });
+        } else {
+          router.push("/dashboard");
+        }
+      } else {
+        const res = await fetch("/api/auth/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          const message =
+            typeof data.error === "string"
+              ? data.error
+              : "Failed to create account.";
+          toast.error("Signup failed", { description: message });
+        } else {
+          toast.success("Account created!", {
+            description: "Signing you in...",
+          });
+
+          const result = await signIn("credentials", {
+            email,
+            password,
+            redirect: false,
+          });
+
+          if (!result?.error) {
+            router.push("/dashboard");
+          }
+        }
+      }
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -95,20 +141,20 @@ function LoginContent() {
       {/* Left Panel — Hero */}
       <div className="relative hidden w-1/2 overflow-hidden lg:flex lg:flex-col lg:justify-between lg:p-12">
         {/* Animated gradient mesh background */}
-        <div className="absolute inset-0 bg-slate-950">
-          <div className="absolute -left-20 -top-20 h-[500px] w-[500px] animate-float rounded-full bg-[#1877F2]/20 blur-[120px]" />
-          <div className="absolute -bottom-20 -right-20 h-[400px] w-[400px] animate-float-delayed rounded-full bg-[#1877F2]/15 blur-[100px]" />
-          <div className="absolute left-1/3 top-1/2 h-[300px] w-[300px] animate-float-slow rounded-full bg-indigo-600/10 blur-[80px]" />
+        <div className="absolute inset-0 bg-[oklch(0.08_0_0)]">
+          <div className="absolute -left-20 -top-20 h-[500px] w-[500px] animate-float rounded-full bg-neon/15 blur-[120px]" />
+          <div className="absolute -bottom-20 -right-20 h-[400px] w-[400px] animate-float-delayed rounded-full bg-neon/10 blur-[100px]" />
+          <div className="absolute left-1/3 top-1/2 h-[300px] w-[300px] animate-float-slow rounded-full bg-emerald-600/8 blur-[80px]" />
         </div>
 
         {/* Content */}
         <div className="relative z-10">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1877F2]">
-              <MetaIcon className="h-5 w-5 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neon/15 border border-neon/20">
+              <BarChart3 className="h-5 w-5 text-neon" />
             </div>
             <span className="font-heading text-xl font-semibold text-white">
-              Meta Ads Dashboard
+              Meta Ads Manager
             </span>
           </div>
         </div>
@@ -118,13 +164,13 @@ function LoginContent() {
             <h1 className="font-heading text-4xl font-bold leading-tight text-white xl:text-5xl">
               Manage your campaigns
               <br />
-              <span className="bg-gradient-to-r from-[#1877F2] to-indigo-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-neon to-emerald-400 bg-clip-text text-transparent">
                 with precision
               </span>
             </h1>
             <p className="max-w-md text-lg text-slate-400">
-              A powerful, secure alternative to Meta&apos;s native Ads Manager.
-              Built for traffic managers who demand better.
+              A powerful, secure dashboard for traffic managers who demand
+              better control over Meta Ads.
             </p>
           </div>
 
@@ -132,10 +178,10 @@ function LoginContent() {
             {FEATURES.map((feature, index) => (
               <div
                 key={feature.title}
-                className="group rounded-xl border border-white/5 bg-white/[0.03] p-4 backdrop-blur-sm transition-colors hover:border-[#1877F2]/20 hover:bg-white/[0.05]"
+                className="group rounded-xl border border-white/5 bg-white/[0.03] p-4 backdrop-blur-sm transition-colors hover:border-neon/20 hover:bg-white/[0.05]"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <feature.icon className="mb-2 h-5 w-5 text-[#1877F2]" />
+                <feature.icon className="mb-2 h-5 w-5 text-neon" />
                 <h3 className="text-sm font-medium text-white">
                   {feature.title}
                 </h3>
@@ -149,90 +195,146 @@ function LoginContent() {
 
         <div className="relative z-10">
           <p className="text-xs text-slate-600">
-            Secure. Open source. Free to use.
+            Secure. Encrypted. Built for professionals.
           </p>
         </div>
       </div>
 
-      {/* Right Panel — Login Form */}
-      <div className="flex w-full flex-col items-center justify-center bg-slate-950 p-8 lg:w-1/2 lg:bg-slate-900/50">
+      {/* Right Panel — Auth Form */}
+      <div className="flex w-full flex-col items-center justify-center bg-[oklch(0.10_0_0)] p-8 lg:w-1/2">
         {/* Mobile logo */}
         <div className="mb-12 flex items-center gap-3 lg:hidden">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1877F2]">
-            <MetaIcon className="h-5 w-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neon/15 border border-neon/20">
+            <BarChart3 className="h-5 w-5 text-neon" />
           </div>
           <span className="font-heading text-xl font-semibold text-white">
-            Meta Ads Dashboard
+            Meta Ads Manager
           </span>
         </div>
 
         <div className="w-full max-w-sm space-y-8">
           <div className="space-y-2 text-center">
             <h2 className="font-heading text-3xl font-bold text-white">
-              Welcome back
+              {isLogin ? "Welcome back" : "Create account"}
             </h2>
             <p className="text-slate-400">
-              Sign in to manage your ad campaigns
+              {isLogin
+                ? "Sign in to manage your ad campaigns"
+                : "Get started with Meta Ads Manager"}
             </p>
           </div>
 
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-xs text-slate-400">
+                  Name
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your name"
+                  required={!isLogin}
+                  className="h-12 bg-white/[0.03] border-white/[0.08] text-sm focus-visible:ring-neon/30 focus-visible:border-neon/40"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-xs text-slate-400">
+                Email
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="h-12 bg-white/[0.03] border-white/[0.08] text-sm focus-visible:ring-neon/30 focus-visible:border-neon/40"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-xs text-slate-400">
+                Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={isLogin ? "Your password" : "Min. 8 characters"}
+                  required
+                  minLength={isLogin ? undefined : 8}
+                  className="h-12 pr-10 bg-white/[0.03] border-white/[0.08] text-sm focus-visible:ring-neon/30 focus-visible:border-neon/40"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
             <Button
-              onClick={handleSignIn}
+              type="submit"
               disabled={isLoading}
-              className="h-12 w-full gap-3 rounded-xl bg-[#1877F2] text-base font-medium text-white transition-all hover:bg-[#1668d9] hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70"
+              className="h-12 w-full gap-3 rounded-xl bg-neon text-base font-semibold text-black transition-all hover:bg-neon-hover hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70"
               size="lg"
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
+              ) : isLogin ? (
+                <LogIn className="h-5 w-5" />
               ) : (
-                <MetaIcon className="h-5 w-5" />
+                <UserPlus className="h-5 w-5" />
               )}
-              {isLoading ? "Connecting..." : "Continue with Meta"}
+              {isLoading
+                ? isLogin
+                  ? "Signing in..."
+                  : "Creating account..."
+                : isLogin
+                  ? "Sign in"
+                  : "Create account"}
             </Button>
+          </form>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-slate-950 px-4 text-slate-500 lg:bg-slate-900/50">
-                  Secure OAuth 2.0 authentication
-                </span>
-              </div>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-[oklch(0.10_0_0)] px-4 text-slate-500">
+                {isLogin ? "New here?" : "Already have an account?"}
+              </span>
             </div>
           </div>
 
-          <div className="space-y-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-            <h3 className="text-sm font-medium text-slate-300">
-              Required permissions
-            </h3>
-            <ul className="space-y-2 text-xs text-slate-500">
-              <li className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1877F2]" />
-                Ads Management — create, edit, and pause campaigns
-              </li>
-              <li className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1877F2]" />
-                Ads Read — view performance metrics and insights
-              </li>
-              <li className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-[#1877F2]" />
-                Business Management — access ad accounts and pages
-              </li>
-            </ul>
-          </div>
-
-          <p className="text-center text-xs text-slate-600">
-            By signing in, you agree to our{" "}
-            <span className="text-slate-400 underline underline-offset-2">
-              Terms of Service
-            </span>{" "}
-            and{" "}
-            <span className="text-slate-400 underline underline-offset-2">
-              Privacy Policy
-            </span>
-          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setName("");
+              setEmail("");
+              setPassword("");
+              setShowPassword(false);
+            }}
+            className="h-11 w-full rounded-xl border-white/[0.08] text-sm text-slate-300 hover:border-neon/30 hover:text-white"
+          >
+            {isLogin ? "Create an account" : "Sign in instead"}
+          </Button>
         </div>
       </div>
     </div>
@@ -243,8 +345,8 @@ export function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-slate-950">
-          <Loader2 className="h-8 w-8 animate-spin text-[#1877F2]" />
+        <div className="flex min-h-screen items-center justify-center bg-[oklch(0.08_0_0)]">
+          <Loader2 className="h-8 w-8 animate-spin text-neon" />
         </div>
       }
     >

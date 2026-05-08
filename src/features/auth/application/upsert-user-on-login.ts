@@ -1,13 +1,11 @@
 import type { AuthRepository } from "../domain/repository";
 import type { User } from "../domain/entities";
-import type { MetaTokenPair } from "../domain/value-objects";
 
 export interface UpsertUserOnLoginInput {
-  metaId: string;
   name: string;
   email: string;
   image: string | null;
-  tokens: MetaTokenPair;
+  passwordHash: string;
 }
 
 export interface UpsertUserOnLoginOutput {
@@ -19,30 +17,20 @@ export class UpsertUserOnLogin {
   constructor(private readonly repo: AuthRepository) {}
 
   async execute(input: UpsertUserOnLoginInput): Promise<UpsertUserOnLoginOutput> {
-    const existing = await this.repo.findUserByMetaId(input.metaId);
-
-    let user: User;
-    let isNewUser: boolean;
+    const existing = await this.repo.findUserByEmail(input.email);
 
     if (existing) {
-      user = await this.repo.updateUser(existing.id, {
-        name: input.name,
-        email: input.email,
-        image: input.image,
-      });
-      isNewUser = false;
-    } else {
-      user = await this.repo.createUser({
-        metaId: input.metaId,
-        name: input.name,
-        email: input.email,
-        image: input.image,
-      });
-      isNewUser = true;
+      return { user: existing, isNewUser: false };
     }
 
-    await this.repo.storeTokens(user.id, input.tokens);
+    const user = await this.repo.createUser({
+      name: input.name,
+      email: input.email,
+      image: input.image,
+      metaId: null,
+      passwordHash: input.passwordHash,
+    });
 
-    return { user, isNewUser };
+    return { user, isNewUser: true };
   }
 }

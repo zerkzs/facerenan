@@ -9,9 +9,5 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  return (
-    <div className="flex min-h-screen bg-background">
-      <main className="flex-1 p-8">{children}</main>
-    </div>
-  );
+  return <>{children}</>;
 }
