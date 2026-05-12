@@ -3,6 +3,7 @@
 import { signIn as nextAuthSignIn } from "@/features/auth/infrastructure/next-auth-config";
 import { headers } from "next/headers";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
+import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { SignupSchema, LoginSchema } from "./dto";
 import { SupabaseAuthRepository } from "../infrastructure/supabase-auth-repository";
@@ -28,18 +29,6 @@ async function getClientIp(): Promise<string> {
     h.get("x-real-ip") ??
     "unknown"
   );
-}
-
-function isSignInError(result: unknown): boolean {
-  if (typeof result === "string") {
-    try {
-      const url = new URL(result, "http://localhost");
-      return url.searchParams.has("error");
-    } catch {
-      return false;
-    }
-  }
-  return false;
 }
 
 export async function loginAction(
@@ -78,36 +67,44 @@ export async function loginAction(
   }
 
   try {
-    const result = await nextAuthSignIn("credentials", {
+    await nextAuthSignIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirect: false,
+      redirectTo: "/dashboard",
     });
 
-    if (isSignInError(result)) {
+    // signIn with redirectTo should throw a redirect on success
+    // If we reach here, something unexpected happened
+    clearAttempts(ip);
+    return { success: true };
+  } catch (error) {
+    // Next.js redirect — re-throw so the client navigates
+    if (isRedirectError(error)) {
+      clearAttempts(ip);
+      throw error;
+    }
+
+    // Auth.js credential errors (wrong password, user not found)
+    if (error instanceof AuthError) {
       recordFailedAttempt(ip);
       console.warn(
         JSON.stringify({
           event: "auth.login.failed",
           ip,
-          reason: "invalid_credentials",
+          reason: error.type,
+          message: error.message,
         })
       );
       return { success: false, error: LOGIN_ERROR };
     }
 
-    clearAttempts(ip);
-    return { success: true };
-  } catch (error) {
-    // Next.js redirect() throws a special error — re-throw it
-    if (isRedirectError(error)) throw error;
-
     recordFailedAttempt(ip);
-    console.warn(
+    console.error(
       JSON.stringify({
         event: "auth.login.failed",
         ip,
         reason: "unknown",
+        error: error instanceof Error ? error.message : String(error),
       })
     );
     return { success: false, error: LOGIN_ERROR };
@@ -157,7 +154,7 @@ export async function signupAction(
     }
 
     const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-    await repo.createUser({
+    const newUser = await repo.createUser({
       name: parsed.data.name,
       email: parsed.data.email,
       image: null,
@@ -165,20 +162,44 @@ export async function signupAction(
       passwordHash,
     });
 
-    const result = await nextAuthSignIn("credentials", {
+    console.info(
+      JSON.stringify({
+        event: "auth.signup.user_created",
+        userId: newUser.id,
+        email: newUser.email,
+      })
+    );
+
+    // Auto-login: redirectTo throws a redirect on success
+    await nextAuthSignIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirect: false,
+      redirectTo: "/dashboard",
     });
-
-    if (isSignInError(result)) {
-      return { success: false, error: "Account created. Please sign in manually." };
-    }
 
     clearAttempts(ip);
     return { success: true };
   } catch (error) {
-    if (isRedirectError(error)) throw error;
+    // Next.js redirect from successful signIn — re-throw
+    if (isRedirectError(error)) {
+      clearAttempts(ip);
+      throw error;
+    }
+
+    // Auth error after user was already created
+    if (error instanceof AuthError) {
+      console.warn(
+        JSON.stringify({
+          event: "auth.signup.auto_login_failed",
+          ip,
+          reason: error.type,
+        })
+      );
+      return {
+        success: false,
+        error: "Account created. Please sign in manually.",
+      };
+    }
 
     recordFailedAttempt(ip);
     console.error(

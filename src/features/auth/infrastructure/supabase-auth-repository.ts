@@ -53,11 +53,43 @@ export class SupabaseAuthRepository implements AuthRepository {
       .eq("email", email)
       .single<UserRow & { password_hash: string | null }>();
 
-    if (error?.code === "PGRST116") return null;
-    if (error) throw new Error(`Failed to verify credentials: ${error.message}`);
-    if (!data.password_hash) return null;
+    if (error?.code === "PGRST116") {
+      console.warn(
+        JSON.stringify({ event: "auth.verify.user_not_found", email })
+      );
+      return null;
+    }
+    if (error) {
+      console.error(
+        JSON.stringify({
+          event: "auth.verify.db_error",
+          email,
+          code: error.code,
+          message: error.message,
+        })
+      );
+      throw new Error(`Failed to verify credentials: ${error.message}`);
+    }
+    if (!data.password_hash) {
+      console.warn(
+        JSON.stringify({
+          event: "auth.verify.no_password_hash",
+          email,
+          userId: data.id,
+        })
+      );
+      return null;
+    }
 
     const isValid = await bcrypt.compare(password, data.password_hash);
+    console.info(
+      JSON.stringify({
+        event: "auth.verify.bcrypt_result",
+        email,
+        isValid,
+        hashPrefix: data.password_hash.substring(0, 7),
+      })
+    );
     if (!isValid) return null;
 
     return toUser(data);
@@ -77,10 +109,32 @@ export class SupabaseAuthRepository implements AuthRepository {
         meta_id: user.metaId,
         password_hash: user.passwordHash,
       })
-      .select()
-      .single<UserRow>();
+      .select("*, password_hash")
+      .single<UserRow & { password_hash: string | null }>();
 
-    if (error) throw new Error(`Failed to create user: ${error.message}`);
+    if (error) {
+      console.error(
+        JSON.stringify({
+          event: "auth.create_user.db_error",
+          email: user.email,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        })
+      );
+      throw new Error(`Failed to create user: ${error.message}`);
+    }
+
+    console.info(
+      JSON.stringify({
+        event: "auth.create_user.success",
+        userId: data.id,
+        email: data.email,
+        hasPasswordHash: !!data.password_hash,
+        hashPrefix: data.password_hash?.substring(0, 7) ?? "MISSING",
+      })
+    );
 
     return toUser(data);
   }
