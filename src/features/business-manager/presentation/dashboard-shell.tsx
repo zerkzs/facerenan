@@ -23,6 +23,7 @@ import { InvitePanel } from "./invite-panel";
 import { BmFormDialog } from "./bm-form-dialog";
 import { BmDeleteDialog } from "./bm-delete-dialog";
 import { useBusinessManagers } from "./use-business-managers";
+import { AdAccountListPanel } from "@/features/ad-accounts/presentation/ad-account-list-panel";
 import type { BusinessManager } from "../domain/entities";
 import type {
   CreateBusinessManagerDto,
@@ -205,15 +206,7 @@ function DashboardShellInner() {
         )}
 
         {activeTab === "ad-accounts" && (
-          <div className="flex flex-col items-center justify-center h-[60vh]">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.03] mb-4">
-              <Megaphone className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-            <h2 className="font-heading text-xl font-semibold text-foreground mb-2">
-              Ad Accounts
-            </h2>
-            <p className="text-sm text-muted-foreground">Coming soon</p>
-          </div>
+          <AdAccountListPanel businessManagers={businessManagers} />
         )}
 
         {activeTab === "invite" && (

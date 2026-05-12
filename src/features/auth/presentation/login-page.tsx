@@ -1,6 +1,5 @@
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
@@ -20,6 +19,10 @@ import {
   LogIn,
   UserPlus,
 } from "lucide-react";
+import {
+  loginAction,
+  signupAction,
+} from "@/features/auth/application/auth-actions";
 
 const FEATURES = [
   {
@@ -55,10 +58,11 @@ const FEATURES = [
 ];
 
 const ERROR_MESSAGES: Record<string, string> = {
-  CredentialsSignin: "Invalid email or password. Please try again.",
-  OAuthSignin: "Could not start the sign-in process. Please try again.",
+  CredentialsSignin: "Invalid credentials. Please try again.",
+  OAuthSignin: "Authentication failed. Please try again.",
   OAuthCallback: "Authentication failed. Please try again.",
-  AccessDenied: "Access denied.",
+  MissingCSRF: "Authentication failed. Please try again.",
+  AccessDenied: "Authentication failed. Please try again.",
   default: "An unexpected error occurred. Please try again.",
 };
 
@@ -88,47 +92,29 @@ function LoginContent() {
 
     try {
       if (isLogin) {
-        const result = await signIn("credentials", {
-          email,
-          password,
-          redirect: false,
-        });
+        const result = await loginAction(email, password);
 
-        if (result?.error) {
+        if (!result.success) {
           toast.error("Login failed", {
-            description: "Invalid email or password.",
+            description: result.error ?? "Invalid credentials.",
           });
         } else {
           router.push("/dashboard");
+          router.refresh();
         }
       } else {
-        const res = await fetch("/api/auth/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
-        });
+        const result = await signupAction(name, email, password);
 
-        if (!res.ok) {
-          const data = await res.json();
-          const message =
-            typeof data.error === "string"
-              ? data.error
-              : "Failed to create account.";
-          toast.error("Signup failed", { description: message });
+        if (!result.success) {
+          toast.error("Signup failed", {
+            description: result.error ?? "Unable to create account.",
+          });
         } else {
           toast.success("Account created!", {
             description: "Signing you in...",
           });
-
-          const result = await signIn("credentials", {
-            email,
-            password,
-            redirect: false,
-          });
-
-          if (!result?.error) {
-            router.push("/dashboard");
-          }
+          router.push("/dashboard");
+          router.refresh();
         }
       }
     } finally {
