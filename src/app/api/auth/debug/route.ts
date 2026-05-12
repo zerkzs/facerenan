@@ -3,11 +3,23 @@ import { createSupabaseServerClient } from "@/features/auth/infrastructure/supab
 
 /**
  * GET /api/auth/debug
- * Diagnostic endpoint — checks Supabase connectivity and users table schema.
+ * Diagnostic endpoint — checks env vars, Auth.js config, and Supabase schema.
  * TODO: Remove or protect before production launch.
  */
 export async function GET() {
   const checks: Record<string, unknown> = {};
+
+  // Check critical env vars (existence only, never values)
+  checks.env = {
+    NEXTAUTH_SECRET: !!process.env.NEXTAUTH_SECRET,
+    AUTH_SECRET: !!process.env.AUTH_SECRET,
+    NEXTAUTH_URL: !!process.env.NEXTAUTH_URL,
+    AUTH_URL: !!process.env.AUTH_URL,
+    NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    AUTH_TRUST_HOST: !!process.env.AUTH_TRUST_HOST,
+    NODE_ENV: process.env.NODE_ENV,
+  };
 
   try {
     const db = createSupabaseServerClient();
