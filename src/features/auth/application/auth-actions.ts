@@ -1,8 +1,8 @@
 "use server";
 
 import { signIn as nextAuthSignIn } from "@/features/auth/infrastructure/next-auth-config";
-import { AuthError } from "next-auth";
 import { headers } from "next/headers";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import bcrypt from "bcryptjs";
 import { SignupSchema, LoginSchema } from "./dto";
 import { SupabaseAuthRepository } from "../infrastructure/supabase-auth-repository";
@@ -28,6 +28,18 @@ async function getClientIp(): Promise<string> {
     h.get("x-real-ip") ??
     "unknown"
   );
+}
+
+function isSignInError(result: unknown): boolean {
+  if (typeof result === "string") {
+    try {
+      const url = new URL(result, "http://localhost");
+      return url.searchParams.has("error");
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 export async function loginAction(
@@ -66,26 +78,39 @@ export async function loginAction(
   }
 
   try {
-    await nextAuthSignIn("credentials", {
+    const result = await nextAuthSignIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
       redirect: false,
     });
+
+    if (isSignInError(result)) {
+      recordFailedAttempt(ip);
+      console.warn(
+        JSON.stringify({
+          event: "auth.login.failed",
+          ip,
+          reason: "invalid_credentials",
+        })
+      );
+      return { success: false, error: LOGIN_ERROR };
+    }
+
     clearAttempts(ip);
     return { success: true };
   } catch (error) {
+    // Next.js redirect() throws a special error — re-throw it
+    if (isRedirectError(error)) throw error;
+
     recordFailedAttempt(ip);
     console.warn(
       JSON.stringify({
         event: "auth.login.failed",
         ip,
-        reason: error instanceof AuthError ? "invalid_credentials" : "unknown",
+        reason: "unknown",
       })
     );
-    if (error instanceof AuthError) {
-      return { success: false, error: LOGIN_ERROR };
-    }
-    throw error;
+    return { success: false, error: LOGIN_ERROR };
   }
 }
 
@@ -122,7 +147,6 @@ export async function signupAction(
   try {
     const existing = await repo.findUserByEmail(parsed.data.email);
     if (existing) {
-      // Same generic message to prevent email enumeration
       console.warn(
         JSON.stringify({
           event: "auth.signup.duplicate_email",
@@ -141,15 +165,21 @@ export async function signupAction(
       passwordHash,
     });
 
-    await nextAuthSignIn("credentials", {
+    const result = await nextAuthSignIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
       redirect: false,
     });
 
+    if (isSignInError(result)) {
+      return { success: false, error: "Account created. Please sign in manually." };
+    }
+
     clearAttempts(ip);
     return { success: true };
   } catch (error) {
+    if (isRedirectError(error)) throw error;
+
     recordFailedAttempt(ip);
     console.error(
       JSON.stringify({
